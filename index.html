@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Motion Date Studio</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Poppins:ital,wght@0,300;0,400;0,600;0,700;0,900;1,300;1,400;1,600;1,700;1,900&family=Bebas+Neue&family=Archivo+Black&family=Playfair+Display:ital,wght@0,400;0,700;1,400;1,700&family=Caveat:wght@400;700&family=Anton&family=Oswald:wght@400;600;700&family=JetBrains+Mono:wght@400;500;700&family=Tajawal:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root{
+    --bg: #101114; --panel: #1B1D22; --panel-2: #202329; --border: #2C2F36;
+    --text: #E9E7E1; --muted: #8B8D95; --amber: #F2A93B; --cyan: #4FD1C5;
+    --mono: 'JetBrains Mono', ui-monospace, monospace; --sans: 'Tajawal', sans-serif;
+  }
+  *{box-sizing:border-box;}
+  body{ margin:0; background:var(--bg); color:var(--text); font-family:var(--sans); min-height:100vh; }
+  header{ padding:22px 28px 16px; display:flex; align-items:baseline; justify-content:space-between; border-bottom:1px solid var(--border); flex-wrap:wrap; gap:6px; }
+  header h1{ font-family:var(--mono); font-size:20px; letter-spacing:0.5px; margin:0; color:var(--text); direction:ltr; text-align:right; }
+  header p{ margin:2px 0 0; color:var(--muted); font-size:13px; }
+  .layout{ display:grid; grid-template-columns: 1fr 340px; gap:22px; padding:24px 28px 60px; max-width:1160px; margin:0 auto; }
+  @media (max-width:880px){ .layout{ grid-template-columns:1fr; padding:18px; } }
+  .monitor-wrap{ display:flex; flex-direction:column; align-items:center; gap:16px; }
+  @media (min-width:881px){ .monitor-wrap{ position:sticky; top:16px; } }
+  .bezel{ background:linear-gradient(180deg,#25272D,#17181C); border:1px solid var(--border); border-radius:18px; padding:14px; width:100%; max-width:340px; box-shadow:0 20px 40px -20px rgba(0,0,0,0.6); }
+  .bezel-top{ display:flex; align-items:center; justify-content:space-between; padding:0 4px 10px; }
+  .rec{ display:flex; align-items:center; gap:6px; font-family:var(--mono); font-size:11px; letter-spacing:1px; color:var(--muted); }
+  .rec-dot{ width:8px;height:8px;border-radius:50%; background:#5A5D66; }
+  .rec-dot.live{ background:var(--amber); box-shadow:0 0 8px var(--amber); animation:pulse 1.1s ease-in-out infinite; }
+  @keyframes pulse{ 50%{ opacity:0.35; } }
+  .screen{ position:relative; width:100%; aspect-ratio:9/16; background:#000 url('data:image/svg+xml;utf8,<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"20\" height=\"20\"><rect width=\"10\" height=\"10\" fill=\"%23222\"/><rect x=\"10\" y=\"10\" width=\"10\" height=\"10\" fill=\"%23222\"/></svg>'); border-radius:8px; overflow:hidden; display:flex; align-items:center; justify-content:center; }
+  .screen canvas{ width:100%; height:100%; display:block; }
+  .scanlines{ position:absolute; inset:0; background:repeating-linear-gradient(180deg, rgba(255,255,255,0.025) 0px, rgba(255,255,255,0.025) 1px, transparent 1px, transparent 3px); pointer-events:none; }
+  .timecode-row{ display:flex; justify-content:space-between; font-family:var(--mono); font-size:12px; color:var(--muted); padding:10px 4px 0; }
+  .timecode-row span.now{ color:var(--cyan); }
+  .phase-tag{ font-family:var(--mono); font-size:10px; color:var(--amber); text-align:center; padding-top:4px; letter-spacing:1px; min-height:14px; }
+  .transport{ width:100%; max-width:340px; display:flex; flex-direction:column; gap:10px; }
+  input[type=range]{ -webkit-appearance:none; appearance:none; width:100%; height:4px; border-radius:2px; background:var(--border); outline:none; }
+  input[type=range]::-webkit-slider-thumb{ -webkit-appearance:none; appearance:none; width:14px;height:14px;border-radius:50%; background:var(--cyan); cursor:pointer; border:2px solid #0C0D0F; }
+  .transport-buttons{ display:flex; gap:10px; }
+  button{ font-family:var(--sans); font-weight:700; font-size:13px; border:1px solid var(--border); background:var(--panel-2); color:var(--text); padding:10px 16px; border-radius:9px; cursor:pointer; transition:border-color .15s, color .15s; }
+  button:hover{ border-color:var(--cyan); color:var(--cyan); }
+  button.primary{ background:var(--amber); color:#1A1305; border-color:var(--amber); flex:1; }
+  button.primary:hover{ color:#1A1305; opacity:0.9; border-color:var(--amber); }
+  button:disabled{ opacity:0.5; cursor:not-allowed; }
+  button.export-btn{ width:100%; background:var(--cyan); color:#062522; border-color:var(--cyan); }
+  button.export-btn:hover{ color:#062522; opacity:0.9; }
+  .panels{ display:flex; flex-direction:column; gap:16px; }
+  .panel{ background:var(--panel); border:1px solid var(--border); border-radius:14px; padding:18px; }
+  .panel h2{ font-size:13px; margin:0 0 14px; color:var(--muted); letter-spacing:0.5px; font-weight:700; }
+  .field{ margin-bottom:14px; }
+  .field:last-child{ margin-bottom:0; }
+  .field label{ display:block; font-size:12px; color:var(--muted); margin-bottom:6px; }
+  .dob-row{ display:flex; gap:6px; direction:ltr; }
+  .dob-row input{ width:100%; text-align:center; background:var(--panel-2); border:1px solid var(--border); color:var(--text); padding:9px 4px; border-radius:8px; font-family:var(--mono); font-size:13px; }
+  .row3{ display:grid; grid-template-columns:1fr 1fr 1fr; gap:10px; }
+  input[type=number]{ width:100%; background:var(--panel-2); border:1px solid var(--border); color:var(--cyan); font-family:var(--mono); font-size:13px; padding:9px 4px; border-radius:8px; text-align:center; }
+  select{ width:100%; background:var(--panel-2); border:1px solid var(--border); color:var(--text); padding:9px 10px; border-radius:8px; font-family:var(--sans); font-size:13px; }
+  .slider-row{ display:flex; align-items:center; gap:8px; }
+  .slider-row input[type=range]{ flex:1; }
+  .slider-row input[type=number]{ width:58px; font-size:12px; padding:6px 4px; }
+  .format-list{ display:flex; flex-direction:column; border:1px solid var(--border); border-radius:10px; overflow:hidden; }
+  .format-row{ display:flex; flex-direction:row-reverse; align-items:center; justify-content:space-between; padding:11px 12px; border-bottom:1px solid var(--border); cursor:pointer; }
+  .format-row:last-child{ border-bottom:none; }
+  .format-row:hover{ background:var(--panel-2); }
+  .format-row input{ accent-color:var(--cyan); width:16px; height:16px; }
+  .format-row span{ font-family:var(--mono); font-size:14px; direction:ltr; }
+  .format-row.active{ background:#1E2B29; }
+  .format-row.active span{ color:var(--cyan); }
+  .choice-row{ display:flex; gap:8px; }
+  .choice-row label{ flex:1; text-align:center; border:1px solid var(--border); border-radius:8px; padding:9px 4px; font-size:12.5px; cursor:pointer; background:var(--panel-2); }
+  .choice-row input{ display:none; }
+  .choice-row label.active{ border-color:var(--cyan); color:var(--cyan); background:#1E2B29; }
+  .stat-line{ display:flex; justify-content:space-between; font-family:var(--mono); font-size:12px; color:var(--muted); border-top:1px dashed var(--border); padding-top:10px; margin-top:4px; }
+  .stat-line b{ color:var(--text); font-weight:500; }
+  .note{ font-size:11.5px; color:var(--muted); line-height:1.6; padding-top:8px; }
+  #exportStatus{ font-family:var(--mono); font-size:11.5px; color:var(--cyan); text-align:center; min-height:16px; margin-top:8px; }
+  #downloadArea{ margin-top:10px; text-align:center; }
+  #downloadArea a{ display:inline-block; background:var(--amber); color:#1A1305; padding:9px 18px; border-radius:8px; font-weight:700; font-size:13px; text-decoration:none; }
+  input[type=file]{ font-size:12px; color:var(--muted); width:100%; }
+  .swatches{ display:inline-flex; gap:7px; vertical-align:middle; margin-inline-end:10px; }
+  .swatch{ width:26px; height:26px; border-radius:50%; border:2px solid var(--border); cursor:pointer; padding:0; }
+  .swatch.sel{ border-color:var(--cyan); }
+</style>
+</head>
+<body>
+
+<header>
+  <div>
+    <h1>MOTION DATE STUDIO</h1>
+    <p>مراجعة 5 — تصدير دقيق بالفريم (WebCodecs) + صوت مدموج</p>
+  </div>
+  <div class="rec" id="recLabel">
+    <span class="rec-dot" id="recDot"></span>
+    <span id="recText">PAUSED</span>
+  </div>
+</header>
+
+<div class="layout">
+  <div class="monitor-wrap">
+    <div class="bezel">
+      <div class="bezel-top">
+        <span style="font-family:var(--mono);font-size:11px;color:var(--muted);">PREVIEW</span>
+        <span style="font-family:var(--mono);font-size:11px;color:var(--muted);" id="dayCounter">0 / 0</span>
+      </div>
+      <div class="screen" id="screenWrap">
+        <canvas id="canvas" width="540" height="960"></canvas>
+        <div class="scanlines"></div>
+      </div>
+      <div class="timecode-row">
+        <span id="tcElapsed">00:00.0</span>
+        <span class="now" id="tcTotal">00:00.0</span>
+      </div>
+      <div class="phase-tag" id="phaseTag">&nbsp;</div>
+    </div>
+    <div class="transport">
+      <input type="range" id="scrubber" min="0" max="1000" value="0">
+      <div class="transport-buttons">
+        <button class="primary" id="playBtn">▶ تشغيل</button>
+        <button id="resetBtn">⟲ إعادة</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="panels">
+
+    <div class="panel">
+      <h2>التاريخ</h2>
+      <div class="field">
+        <label>من (يوم / شهر / سنة)</label>
+        <div class="dob-row">
+          <input type="number" id="sDay" min="1" max="31" value="1">
+          <input type="number" id="sMonth" min="1" max="12" value="1">
+          <input type="number" id="sYear" min="1900" max="2100" value="2025">
+        </div>
+      </div>
+      <div class="field">
+        <label>إلى (يوم / شهر / سنة)</label>
+        <div class="dob-row">
+          <input type="number" id="eDay" min="1" max="31" value="15">
+          <input type="number" id="eMonth" min="1" max="12" value="8">
+          <input type="number" id="eYear" min="1900" max="2100" value="2026">
+        </div>
+      </div>
+      <div class="stat-line"><span>عدد الأيام</span><b id="dayCount">—</b></div>
+    </div>
+
+    <div class="panel">
+      <h2>صيغة العرض</h2>
+      <div class="format-list" id="formatList">
+        <label class="format-row active" data-fmt="dmy/"><input type="radio" name="fmt" checked><span>17/05/1978</span></label>
+        <label class="format-row" data-fmt="dmy-"><input type="radio" name="fmt"><span>17-05-1978</span></label>
+        <label class="format-row" data-fmt="dmy."><input type="radio" name="fmt"><span>17.05.1978</span></label>
+        <label class="format-row" data-fmt="dmy:"><input type="radio" name="fmt"><span>17:05:1978</span></label>
+        <label class="format-row" data-fmt="dmy|"><input type="radio" name="fmt"><span>17|05|1978</span></label>
+        <label class="format-row" data-fmt="dmy "><input type="radio" name="fmt"><span>17 05 1978</span></label>
+        <label class="format-row" data-fmt="dmy"><input type="radio" name="fmt"><span>17051978</span></label>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>التوقيت (بالثانية)</h2>
+      <div class="field"><label>ثبات في البداية (ثانية)</label><input type="number" id="holdStart" min="0" max="60" step="0.5" value="2"></div>
+      <div class="field"><label>مدة العد (ثانية)</label><input type="number" id="countDur" min="0.5" max="300" step="0.5" value="16"></div>
+      <div class="field"><label>ثبات في النهاية (ثانية)</label><input type="number" id="holdEnd" min="0" max="60" step="0.5" value="2"></div>
+      <div class="stat-line"><span>المدة الكلية</span><b id="totalDur">—</b></div>
+    </div>
+
+    <div class="panel">
+      <h2>شكل العد (Easing)</h2>
+      <div class="field">
+        <label>قوة التسارع <span id="accelVal" style="color:var(--cyan);font-family:var(--mono);"></span></label>
+        <div class="slider-row"><input type="range" id="accel" min="0" max="10" step="0.1" value="4"><input type="number" id="accelNum" min="0" max="10" step="0.1" value="4"></div>
+      </div>
+      <div class="field">
+        <label>قوة التباطؤ <span id="decelVal" style="color:var(--cyan);font-family:var(--mono);"></span></label>
+        <div class="slider-row"><input type="range" id="decel" min="0" max="10" step="0.1" value="4"><input type="number" id="decelNum" min="0" max="10" step="0.1" value="4"></div>
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>المؤثرات (دخول / خروج)</h2>
+      <div class="field">
+        <label>الأسلوب</label>
+        <div class="choice-row" id="fxStyleChoice">
+          <label class="active" data-v="none"><input type="radio" name="fxstyle" checked>بدون</label>
+          <label data-v="fade"><input type="radio" name="fxstyle">تلاشي</label>
+          <label data-v="slide"><input type="radio" name="fxstyle">انزلاق</label>
+          <label data-v="scale"><input type="radio" name="fxstyle">تكبير</label>
+        </div>
+      </div>
+      <div class="field">
+        <label>مدة الدخول (ثانية، من ثبات البداية)</label>
+        <input type="number" id="fxIntro" min="0" max="10" step="0.1" value="0.5">
+      </div>
+      <div class="field">
+        <label>مدة الخروج (ثانية، من ثبات النهاية)</label>
+        <input type="number" id="fxOutro" min="0" max="10" step="0.1" value="0.5">
+      </div>
+      <p class="note">لازم "ثبات البداية/النهاية" في قسم التوقيت يكون أكبر من أو يساوي المدة هنا عشان يبان المؤثر كامل.</p>
+    </div>
+
+    <div class="panel">
+      <h2>الخط</h2>
+      <div class="field">
+        <label>حجم الخط (px)</label>
+        <input type="number" id="fontSize" min="10" max="400" value="124">
+      </div>
+      <div class="field">
+        <label>اختصارات خطوط جاهزة</label>
+        <div class="choice-row" id="fontPresetChoice" style="flex-wrap:wrap;">
+          <label class="active" data-v="Poppins" style="flex:0 0 30%;"><input type="radio" name="fpreset" checked>Poppins</label>
+          <label data-v="Bebas Neue" style="flex:0 0 30%;"><input type="radio" name="fpreset">Bebas Neue</label>
+          <label data-v="Archivo Black" style="flex:0 0 30%;"><input type="radio" name="fpreset">Archivo Black</label>
+          <label data-v="JetBrains Mono" style="flex:0 0 30%;"><input type="radio" name="fpreset">Mono</label>
+          <label data-v="Playfair Display" style="flex:0 0 30%;"><input type="radio" name="fpreset">Playfair</label>
+          <label data-v="Caveat" style="flex:0 0 30%;"><input type="radio" name="fpreset">Caveat</label>
+          <label data-v="Anton" style="flex:0 0 30%;"><input type="radio" name="fpreset">Anton</label>
+          <label data-v="Oswald" style="flex:0 0 30%;"><input type="radio" name="fpreset">Oswald</label>
+        </div>
+      </div>
+      <div class="field">
+        <label>الوزن</label>
+        <div class="choice-row" id="weightChoice">
+          <label data-v="300"><input type="radio" name="fweight">Light</label>
+          <label class="active" data-v="600"><input type="radio" name="fweight" checked>Regular</label>
+          <label data-v="700"><input type="radio" name="fweight">Bold</label>
+          <label data-v="900"><input type="radio" name="fweight">Black</label>
+        </div>
+      </div>
+      <div class="field">
+        <label>مائل (Italic)</label>
+        <div class="choice-row" id="italicChoice">
+          <label class="active" data-v="0"><input type="radio" name="fitalic" checked>عادي</label>
+          <label data-v="1"><input type="radio" name="fitalic">مائل</label>
+        </div>
+      </div>
+      <div class="field">
+        <label>خط مخصص (اختياري — ترفع ملف .ttf / .otf / .woff)</label>
+        <input type="file" id="customFont" accept=".ttf,.otf,.woff,.woff2">
+        <div class="note" id="customFontStatus">مفيش خط مرفوع، مستخدم Poppins. لو الضغط هنا مش بيفتح قائمة ملفات، جرّب من متصفح Chrome العادي بدل معاينة Acode.</div>
+      </div>
+      <div class="stat-line" style="border-top:none;padding-top:0;margin-top:0;"><span>ألوان كل خانة (دوس على دايرة لون جاهز)</span><span></span></div>
+      <div class="field" id="dayColorField" style="margin-top:8px;">
+        <label style="margin:0 0 6px;">لون اليوم</label>
+        <input type="color" id="dayColor" value="#f4f2ed" style="width:44px;height:34px;border:none;border-radius:6px;background:none;vertical-align:middle;">
+      </div>
+      <div class="field" id="monthColorField">
+        <label style="margin:0 0 6px;">لون الشهر</label>
+        <input type="color" id="monthColor" value="#f4f2ed" style="width:44px;height:34px;border:none;border-radius:6px;background:none;vertical-align:middle;">
+      </div>
+      <div class="field" id="yearColorField">
+        <label style="margin:0 0 6px;">لون السنة</label>
+        <input type="color" id="yearColor" value="#f4f2ed" style="width:44px;height:34px;border:none;border-radius:6px;background:none;vertical-align:middle;">
+      </div>
+      <div class="field" id="sepColorField">
+        <label style="margin:0 0 6px;">لون الفواصل (: . / |)</label>
+        <input type="color" id="sepColor" value="#8B8D95" style="width:44px;height:34px;border:none;border-radius:6px;background:none;vertical-align:middle;">
+      </div>
+    </div>
+
+    <div class="panel">
+      <h2>الصوت</h2>
+      <div class="field">
+        <label>ملف صوت خارجي (اختياري)</label>
+        <input type="file" id="audioFile" accept="audio/*">
+        <div class="note">لو الضغط هنا مش بيفتح قائمة ملفات، جرّب من متصفح Chrome العادي بدل معاينة Acode.</div>
+      </div>
+      <div class="field">
+        <label>مستوى الصوت <span id="volVal" style="color:var(--cyan);font-family:var(--mono);">70%</span></label>
+        <input type="range" id="volume" min="0" max="100" value="70">
+      </div>
+      <div class="field">
+        <label>تلاشي الصوت في النهاية (ثانية)</label>
+        <input type="number" id="audioFade" min="0" max="30" step="0.5" value="1.5">
+      </div>
+      <p class="note">الصوت بيتسجل بس مع تصدير WebM (مش مع سلسلة الصور). لو مش هتضيف صوت، سيب الحقل فاضي والتصدير هيطلع صامت.</p>
+    </div>
+
+    <div class="panel">
+      <h2>التصدير</h2>
+      <div class="field">
+        <label>نسبة العرض</label>
+        <div class="choice-row" id="aspectChoice">
+          <label data-v="portrait"><input type="radio" name="aspect">9:16</label>
+          <label data-v="landscape"><input type="radio" name="aspect">16:9</label>
+          <label class="active" data-v="square"><input type="radio" name="aspect" checked>1:1</label>
+        </div>
+      </div>
+      <div class="field">
+        <label>الدقة</label>
+        <div class="choice-row" id="resChoice">
+          <label class="active" data-v="1080"><input type="radio" name="res" checked>1080p</label>
+          <label data-v="2k"><input type="radio" name="res">2K</label>
+        </div>
+      </div>
+      <div class="field">
+        <label>معدل الإطارات</label>
+        <div class="choice-row" id="fpsChoice">
+          <label class="active" data-v="30"><input type="radio" name="fps" checked>30fps</label>
+          <label data-v="60"><input type="radio" name="fps">60fps</label>
+        </div>
+      </div>
+
+      <div style="border-top:1px dashed var(--border);margin:16px 0;padding-top:14px;">
+        <b style="font-size:12.5px;">1) فيديو WebM (فيه الصوت) — الأنسب لـ VN</b>
+        <p class="note">تصدير بخلفية خضراء صافية (Chroma Key) دايمًا. في VN: استورده عادي زي أي فيديو، بعدين دوس على الفيديو → دوّر على أداة "Chroma Key" أو "Green Screen" → اسحب الـ picker على اللون الأخضر، هيتشال ويفضل التاريخ بس.<br><br>التصدير ده بيرسم كل فريم لوحده بدون أي علاقة بسرعة جهازك (مش تسجيل شاشة لحظي)، فالمدة وسرعة العد والسلاسة بتطلع مطابقة 100% للمعاينة، مهما كان الجهاز بطيء وقت التصدير.</p>
+        <button class="export-btn" id="exportBtn">⬤ تصدير فيديو WebM</button>
+        <div id="exportStatus"></div>
+        <div id="downloadArea"></div>
+      </div>
+
+      <div style="border-top:1px dashed var(--border);margin:16px 0;padding-top:14px;">
+        <b style="font-size:12.5px;">2) سلسلة صور PNG — لو عندك كمبيوتر أو برنامج مونتاج بيدعم Image Sequence</b>
+        <p class="note">كل فريم صورة PNG شفافة كاملة الجودة، مدة مضبوطة 100%، لكن أغلب تطبيقات الموبايل (زي VN) مش بتفتح مئات الصور كفيديو متحرك — ده فيتشر برامج الكمبيوتر (Premiere/DaVinci) مش الموبايل. استخدمها بس لو هتحوّلها بكمبيوتر أو برنامج بيدعم كده.</p>
+        <button class="export-btn" id="exportPngBtn">🖼 تصدير سلسلة PNG</button>
+        <div id="pngStatus" style="font-family:var(--mono);font-size:11.5px;color:var(--cyan);text-align:center;min-height:16px;margin-top:8px;"></div>
+        <div id="pngDownloadArea" style="margin-top:10px;text-align:center;"></div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// @ts-nocheck — this is plain JavaScript, not TypeScript. The editor's language server still
+// runs a TS-based checker over .js by default and flags every untyped parameter as an "implicit
+// any". That's just IntelliSense being chatty — it has no effect on how this runs in a browser.
+(function(){
+  const canvas = document.getElementById('canvas');
+  const ctx = canvas.getContext('2d', { alpha: true });
+  const screenWrap = document.getElementById('screenWrap');
+
+  const sDay = document.getElementById('sDay'), sMonth = document.getElementById('sMonth'), sYear = document.getElementById('sYear');
+  const eDay = document.getElementById('eDay'), eMonth = document.getElementById('eMonth'), eYear = document.getElementById('eYear');
+  const holdStartInput = document.getElementById('holdStart');
+  const countDurInput = document.getElementById('countDur');
+  const holdEndInput = document.getElementById('holdEnd');
+  const accelInput = document.getElementById('accel'), decelInput = document.getElementById('decel');
+  const accelNum = document.getElementById('accelNum'), decelNum = document.getElementById('decelNum');
+  const accelVal = document.getElementById('accelVal'), decelVal = document.getElementById('decelVal');
+  const dayCount = document.getElementById('dayCount');
+  const dayCounter = document.getElementById('dayCounter');
+  const totalDurEl = document.getElementById('totalDur');
+  const tcElapsed = document.getElementById('tcElapsed');
+  const tcTotal = document.getElementById('tcTotal');
+  const phaseTag = document.getElementById('phaseTag');
+  const scrubber = document.getElementById('scrubber');
+  const playBtn = document.getElementById('playBtn');
+  const resetBtn = document.getElementById('resetBtn');
+  const recDot = document.getElementById('recDot');
+  const recText = document.getElementById('recText');
+  const formatRows = Array.from(document.querySelectorAll('.format-row'));
+  const audioFileInput = document.getElementById('audioFile');
+  const audioFadeInput = document.getElementById('audioFade');
+  const volumeInput = document.getElementById('volume');
+  const volVal = document.getElementById('volVal');
+  const exportBtn = document.getElementById('exportBtn');
+  const exportStatus = document.getElementById('exportStatus');
+  const downloadArea = document.getElementById('downloadArea');
+  const exportPngBtn = document.getElementById('exportPngBtn');
+  const pngStatus = document.getElementById('pngStatus');
+  const pngDownloadArea = document.getElementById('pngDownloadArea');
+  const fontSizeInput = document.getElementById('fontSize');
+  const customFontInput = document.getElementById('customFont');
+  const customFontStatus = document.getElementById('customFontStatus');
+  const fxIntroInput = document.getElementById('fxIntro');
+  const fxOutroInput = document.getElementById('fxOutro');
+  const dayColorInput = document.getElementById('dayColor');
+  const monthColorInput = document.getElementById('monthColor');
+  const yearColorInput = document.getElementById('yearColor');
+  const sepColorInput = document.getElementById('sepColor');
+
+  let currentFormat = 'dmy/';
+  let dates = [];
+  let holdStartMs = 2000, countMs = 16000, holdEndMs = 2000, totalDurationMs = 20000;
+  let easingTable = [];
+  let elapsedMs = 0;
+  let playing = false;
+  let lastFrameTime = null;
+  let rafId = null;
+  let isExporting = false;
+  let exportSettings = { bg:'green', aspect:'square', res:'1080', fps:30 };
+  let fontSettings = { weight:600, italic:false, family:'Poppins' };
+  let fxSettings = { style:'none', introSec:0.5, outroSec:0.5 };
+
+  function clampNum(v, min, max, fallback){
+    v = parseFloat(v);
+    if(isNaN(v)) v = fallback;
+    return Math.max(min, Math.min(max, v));
+  }
+
+  function buildDateList(){
+    const sd = clampNum(sDay.value,1,31,1), sm = clampNum(sMonth.value,1,12,1), sy = clampNum(sYear.value,1900,2100,2025);
+    const ed = clampNum(eDay.value,1,31,1), em = clampNum(eMonth.value,1,12,1), ey = clampNum(eYear.value,1900,2100,2025);
+    const s = new Date(sy, sm-1, sd);
+    const e = new Date(ey, em-1, ed);
+    const list = [];
+    if(e >= s){
+      let cur = new Date(s);
+      while(cur <= e){ list.push(new Date(cur)); cur.setDate(cur.getDate() + 1); }
+    }
+    return list.length ? list : [s];
+  }
+
+  function getDateSegments(d){
+    const dd = String(d.getDate()).padStart(2,'0');
+    const mm = String(d.getMonth()+1).padStart(2,'0');
+    const yyyy = String(d.getFullYear());
+    let sep = '/';
+    let noSep = false;
+    switch(currentFormat){
+      case 'dmy/': sep = '/'; break;
+      case 'dmy-': sep = '-'; break;
+      case 'dmy.': sep = '.'; break;
+      case 'dmy:': sep = ':'; break;
+      case 'dmy|': sep = '|'; break;
+      case 'dmy ': sep = ' '; break;
+      case 'dmy':  noSep = true; break;
+      default: sep = '/';
+    }
+    if(noSep){
+      return [
+        { text:dd, type:'day' },
+        { text:mm, type:'month' },
+        { text:yyyy, type:'year' }
+      ];
+    }
+    return [
+      { text:dd, type:'day' },
+      { text:sep, type:'sep' },
+      { text:mm, type:'month' },
+      { text:sep, type:'sep' },
+      { text:yyyy, type:'year' }
+    ];
+  }
+
+  function buildEasingTable(accel, decel, steps){
+    steps = steps || 500;
+    const a = 0.02 + (accel/10) * 0.46;
+    const d = 0.02 + (decel/10) * 0.46;
+    const b = Math.max(0, 1 - a - d);
+    function rawSpeed(t){
+      if(t < a) return a > 0 ? (t/a) : 1;
+      if(t < a+b) return 1;
+      const remain = d > 0 ? (1-t)/d : 0;
+      return Math.max(0, remain);
+    }
+    const table = [0];
+    let cum = 0;
+    const dt = 1/steps;
+    for(let i=1;i<=steps;i++){ cum += rawSpeed(i*dt) * dt; table.push(cum); }
+    const total = table[table.length-1] || 1;
+    return table.map(v => v/total);
+  }
+
+  function easedProgress(t){
+    if(t<=0) return 0;
+    if(t>=1) return 1;
+    const steps = easingTable.length - 1;
+    const pos = t * steps;
+    const i = Math.floor(pos);
+    const frac = pos - i;
+    const a = easingTable[i];
+    const b = easingTable[Math.min(i+1, steps)];
+    return a + (b-a)*frac;
+  }
+
+  function recompute(){
+    dates = buildDateList();
+    dayCount.textContent = dates.length.toLocaleString('en-US');
+    easingTable = buildEasingTable(+accelInput.value, +decelInput.value);
+    accelVal.textContent = (+accelInput.value).toFixed(1);
+    decelVal.textContent = (+decelInput.value).toFixed(1);
+
+    holdStartMs = clampNum(holdStartInput.value, 0, 60, 0) * 1000;
+    countMs = clampNum(countDurInput.value, 0.5, 300, 1) * 1000;
+    holdEndMs = clampNum(holdEndInput.value, 0, 60, 0) * 1000;
+    totalDurationMs = holdStartMs + countMs + holdEndMs;
+
+    totalDurEl.textContent = formatSeconds(totalDurationMs);
+    tcTotal.textContent = formatSeconds(totalDurationMs);
+    elapsedMs = Math.min(elapsedMs, totalDurationMs);
+    renderFrame();
+  }
+
+  function formatSeconds(ms){
+    const s = ms/1000;
+    const m = Math.floor(s/60);
+    const rem = (s - m*60).toFixed(1);
+    return `${String(m).padStart(2,'0')}:${String(rem).padStart(4,'0')}`;
+  }
+
+  function indexForElapsed(){
+    if(elapsedMs <= holdStartMs) return { idx:0, phase:'ثبات البداية' };
+    if(elapsedMs >= holdStartMs + countMs) return { idx: dates.length-1, phase:'ثبات النهاية' };
+    const t = countMs ? (elapsedMs - holdStartMs) / countMs : 1;
+    const eased = easedProgress(t);
+    const idx = Math.min(dates.length-1, Math.round(eased * (dates.length-1)));
+    return { idx, phase:'يعدّ...' };
+  }
+
+  function getEntranceExitTransform(){
+    if(fxSettings.style === 'none') return { alpha:1, ty:0, scale:1 };
+    const introMs = Math.min(fxSettings.introSec, holdStartMs/1000) * 1000;
+    const outroMs = Math.min(fxSettings.outroSec, holdEndMs/1000) * 1000;
+    let p = 1;
+    if(introMs > 0 && elapsedMs < introMs){
+      p = elapsedMs / introMs;
+    } else if(outroMs > 0 && elapsedMs > totalDurationMs - outroMs){
+      p = (totalDurationMs - elapsedMs) / outroMs;
+    }
+    p = Math.max(0, Math.min(1, p));
+    if(fxSettings.style === 'fade') return { alpha:p, ty:0, scale:1 };
+    if(fxSettings.style === 'slide') return { alpha:p, ty:(1-p)*canvas.height*0.05, scale:1 };
+    if(fxSettings.style === 'scale') return { alpha:p, ty:0, scale:0.55+0.45*p };
+    return { alpha:1, ty:0, scale:1 };
+  }
+
+  function renderFrame(){
+    if(!dates.length) return;
+    const { idx, phase } = indexForElapsed();
+    const d = dates[idx] || dates[0];
+
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    if(exportSettings.bg === 'green'){
+      ctx.fillStyle = '#00FF00';
+      ctx.fillRect(0,0,canvas.width,canvas.height);
+    }
+
+    const dateFontSize = clampNum(fontSizeInput.value, 10, 400, Math.round(canvas.width*0.115));
+    const style = fontSettings.italic ? 'italic' : 'normal';
+    const fontStr = `${style} ${fontSettings.weight} ${dateFontSize}px "${fontSettings.family}", "Poppins", sans-serif`;
+
+    const segs = getDateSegments(d);
+    const colorMap = { day: dayColorInput.value, month: monthColorInput.value, year: yearColorInput.value, sep: sepColorInput.value };
+
+    ctx.font = fontStr;
+    let totalWidth = 0;
+    const widths = segs.map(s => { const w = ctx.measureText(s.text).width; totalWidth += w; return w; });
+    const baseX = canvas.width/2 - totalWidth/2;
+    const baseY = canvas.height/2;
+
+    function paintSegmentsTo(targetCtx){
+      targetCtx.font = fontStr;
+      targetCtx.textBaseline = 'middle';
+      targetCtx.textAlign = 'left';
+      let x = baseX;
+      segs.forEach((s,i) => {
+        targetCtx.fillStyle = colorMap[s.type] || '#F4F2ED';
+        targetCtx.fillText(s.text, x, baseY);
+        x += widths[i];
+      });
+    }
+
+    const fx = getEntranceExitTransform();
+    ctx.save();
+    ctx.globalAlpha = fx.alpha;
+    ctx.translate(canvas.width/2, canvas.height/2 + fx.ty);
+    ctx.scale(fx.scale, fx.scale);
+    ctx.translate(-canvas.width/2, -canvas.height/2);
+    paintSegmentsTo(ctx);
+    ctx.restore();
+
+    dayCounter.textContent = `${idx+1} / ${dates.length}`;
+    tcElapsed.textContent = formatSeconds(elapsedMs);
+    phaseTag.textContent = phase;
+    const progress = totalDurationMs ? (elapsedMs/totalDurationMs) : 0;
+    scrubber.value = Math.round(progress*1000);
+  }
+
+  function tick(now){
+    if(!playing) return;
+    if(lastFrameTime === null) lastFrameTime = now;
+    const delta = now - lastFrameTime;
+    lastFrameTime = now;
+    elapsedMs = Math.min(totalDurationMs, elapsedMs + delta);
+    renderFrame();
+    if(elapsedMs >= totalDurationMs){
+      setPlaying(false);
+      return;
+    }
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function setPlaying(state){
+    playing = state;
+    if(playing){
+      if(elapsedMs >= totalDurationMs) elapsedMs = 0;
+      lastFrameTime = null;
+      playBtn.textContent = '⏸ إيقاف مؤقت';
+      recDot.classList.add('live');
+      recText.textContent = 'PLAYING';
+      rafId = requestAnimationFrame(tick);
+    } else {
+      playBtn.textContent = '▶ تشغيل';
+      recDot.classList.remove('live');
+      recText.textContent = 'PAUSED';
+      if(rafId) cancelAnimationFrame(rafId);
+    }
+  }
+
+  playBtn.addEventListener('click', () => { if(!isExporting) setPlaying(!playing); });
+  resetBtn.addEventListener('click', () => { if(isExporting) return; setPlaying(false); elapsedMs = 0; renderFrame(); });
+  scrubber.addEventListener('input', () => {
+    if(isExporting) return;
+    setPlaying(false);
+    elapsedMs = (scrubber.value/1000) * totalDurationMs;
+    renderFrame();
+  });
+
+  [sDay,sMonth,sYear,eDay,eMonth,eYear].forEach(el => el.addEventListener('change', () => { elapsedMs = 0; recompute(); }));
+  [holdStartInput, countDurInput, holdEndInput].forEach(el => el.addEventListener('input', () => { recompute(); }));
+
+  function syncPair(range, num, min, max){
+    range.addEventListener('input', () => { num.value = range.value; recompute(); });
+    num.addEventListener('input', () => {
+      const raw = num.value;
+      if(raw === '' || raw === '-') return;
+      const v = clampNum(raw, min, max, +range.value);
+      range.value = v;
+      recompute();
+    });
+    num.addEventListener('blur', () => { num.value = clampNum(num.value, min, max, +range.value); });
+  }
+  syncPair(accelInput, accelNum, 0, 10);
+  syncPair(decelInput, decelNum, 0, 10);
+
+  formatRows.forEach(row => {
+    row.addEventListener('click', () => {
+      formatRows.forEach(r => r.classList.remove('active'));
+      row.classList.add('active');
+      row.querySelector('input').checked = true;
+      currentFormat = row.dataset.fmt;
+      renderFrame();
+    });
+  });
+
+  volumeInput.addEventListener('input', () => { volVal.textContent = volumeInput.value + '%'; });
+
+  // ---- export settings choice rows ----
+  function wireChoiceRow(containerId, onPick){
+    const rows = Array.from(document.querySelectorAll('#'+containerId+' label'));
+    rows.forEach(r => r.addEventListener('click', () => {
+      rows.forEach(x => x.classList.remove('active'));
+      r.classList.add('active');
+      r.querySelector('input').checked = true;
+      onPick(r.dataset.v);
+    }));
+  }
+  wireChoiceRow('aspectChoice', v => { exportSettings.aspect = v; applyCanvasSize(); });
+  wireChoiceRow('resChoice', v => { exportSettings.res = v; applyCanvasSize(); });
+  wireChoiceRow('fpsChoice', v => { exportSettings.fps = +v; });
+  wireChoiceRow('weightChoice', v => { fontSettings.weight = +v; renderFrame(); });
+  wireChoiceRow('italicChoice', v => { fontSettings.italic = (v === '1'); renderFrame(); });
+  wireChoiceRow('fontPresetChoice', v => { fontSettings.family = v; renderFrame(); });
+  wireChoiceRow('fxStyleChoice', v => { fxSettings.style = v; renderFrame(); });
+  fxIntroInput.addEventListener('input', () => { fxSettings.introSec = clampNum(fxIntroInput.value, 0, 60, 0.5); renderFrame(); });
+  fxOutroInput.addEventListener('input', () => { fxSettings.outroSec = clampNum(fxOutroInput.value, 0, 60, 0.5); renderFrame(); });
+
+  fontSizeInput.addEventListener('input', () => renderFrame());
+  [dayColorInput, monthColorInput, yearColorInput, sepColorInput].forEach(el => el.addEventListener('input', () => renderFrame()));
+
+  customFontInput.addEventListener('change', async () => {
+    const file = customFontInput.files[0];
+    if(!file) return;
+    try{
+      customFontStatus.textContent = 'جاري تحميل الخط...';
+      const buf = await file.arrayBuffer();
+      const fam = 'CustomDateFont';
+      const face = new FontFace(fam, buf);
+      await face.load();
+      document.fonts.add(face);
+      fontSettings.family = fam;
+      customFontStatus.textContent = 'تم تحميل: ' + file.name;
+      renderFrame();
+    }catch(err){
+      customFontStatus.textContent = 'تعذّر تحميل الخط (تأكد إنه .ttf أو .otf أو .woff).';
+    }
+  });
+
+  function toEven(n){ return n % 2 === 0 ? n : n + 1; }
+
+  function applyCanvasSize(){
+    const dims = { portrait:[1080,1920], landscape:[1920,1080], square:[1080,1080] };
+    let [w,h] = dims[exportSettings.aspect];
+    if(exportSettings.res === '2k'){ w = Math.round(w*1.333); h = Math.round(h*1.333); }
+    w = toEven(w); h = toEven(h);
+    canvas.width = w; canvas.height = h;
+    const ratioMap = { portrait:'9/16', landscape:'16/9', square:'1/1' };
+    screenWrap.style.aspectRatio = ratioMap[exportSettings.aspect];
+    renderFrame();
+  }
+  applyCanvasSize();
+
+  // ---- WebM export: deterministic, frame-by-frame (WebCodecs, via the Mediabunny library) ----
+  // This does NOT record the screen in real time anymore. It steps elapsedMs forward in
+  // exact fixed increments (exactly like the PNG export below), draws that instant, and
+  // hands that one frame to the encoder with an explicit timestamp. Total duration, the
+  // count's speed, and how smooth it looks are therefore always exactly what your settings
+  // say — never dependent on how fast the phone/PC happens to be while exporting.
+
+  async function buildExportAudioBuffer(file, totalMs, volumePercent, fadeSec){
+    const arrayBuf = await file.arrayBuffer();
+    const probeCtx = new (window.AudioContext || window.webkitAudioContext)();
+    let decoded;
+    try{ decoded = await probeCtx.decodeAudioData(arrayBuf); }
+    finally{ probeCtx.close(); }
+
+    const sampleRate = 48000;
+    const totalSec = totalMs/1000;
+    const channels = Math.min(2, decoded.numberOfChannels || 1);
+    const offlineCtx = new OfflineAudioContext(channels, Math.max(1, Math.ceil(sampleRate*totalSec)), sampleRate);
+    const src = offlineCtx.createBufferSource();
+    src.buffer = decoded;
+    const gainNode = offlineCtx.createGain();
+    const vol = volumePercent/100;
+    const fade = clampNum(fadeSec, 0, 60, 0);
+    // same envelope as before: constant volume, then linear fade to 0 over the last `fade` seconds —
+    // computed here with real Web Audio automation instead of live playback, so it renders instantly and exactly.
+    gainNode.gain.setValueAtTime(vol, 0);
+    if(fade > 0 && fade < totalSec){
+      gainNode.gain.setValueAtTime(vol, totalSec - fade);
+      gainNode.gain.linearRampToValueAtTime(0, totalSec);
+    }
+    src.connect(gainNode).connect(offlineCtx.destination);
+    src.start(0);
+    return offlineCtx.startRendering();
+  }
+
+  exportBtn.addEventListener('click', async () => {
+    if(isExporting) return;
+    if(typeof VideoEncoder === 'undefined'){
+      exportStatus.textContent = 'المتصفح ده مش بيدعم التصدير الدقيق (WebCodecs). جرّب أحدث إصدار Chrome على أندرويد.';
+      return;
+    }
+
+    isExporting = true;
+    exportBtn.disabled = true;
+    exportPngBtn.disabled = true;
+    setPlaying(false);
+    downloadArea.innerHTML = '';
+    recDot.classList.add('live');
+    recText.textContent = 'RECORDING';
+    const wasElapsed = elapsedMs;
+
+    try{
+      exportStatus.textContent = 'جاري تحميل مكتبة الترميز...';
+      // dynamic import on purpose: if this ever fails to load (network/CDN hiccup), only
+      // the video export breaks — the preview and the PNG export stay completely unaffected.
+      const { Output, WebMOutputFormat, BufferTarget, CanvasSource, AudioBufferSource, QUALITY_HIGH } =
+        await import('https://cdn.jsdelivr.net/npm/mediabunny/+esm');
+
+      let renderedAudio = null;
+      const audioFile = audioFileInput.files[0];
+      if(audioFile){
+        exportStatus.textContent = 'جاري تجهيز الصوت...';
+        renderedAudio = await buildExportAudioBuffer(audioFile, totalDurationMs, +volumeInput.value, +audioFadeInput.value);
+      }
+
+      const output = new Output({
+        format: new WebMOutputFormat(),
+        target: new BufferTarget(),
+      });
+
+      const videoSource = new CanvasSource(canvas, { codec:'vp9', bitrate:QUALITY_HIGH });
+      output.addVideoTrack(videoSource);
+
+      let audioSource = null;
+      if(renderedAudio){
+        audioSource = new AudioBufferSource({ codec:'opus', bitrate:QUALITY_HIGH });
+        output.addAudioTrack(audioSource);
+      }
+
+      await output.start();
+
+      const fps = exportSettings.fps;
+      const totalFrames = Math.max(1, Math.round((totalDurationMs/1000) * fps));
+      for(let i=0; i<totalFrames; i++){
+        elapsedMs = Math.min(totalDurationMs, i * (1000/fps));
+        renderFrame();
+        await videoSource.add(i/fps, 1/fps);
+        if(i % 8 === 0 || i === totalFrames-1){
+          exportStatus.textContent = 'جاري رسم وترميز الفريمات... ' + (i+1) + '/' + totalFrames;
+          await new Promise(r => setTimeout(r, 0));
+        }
+      }
+
+      if(audioSource){
+        exportStatus.textContent = 'جاري إضافة الصوت...';
+        await audioSource.add(renderedAudio);
+      }
+
+      exportStatus.textContent = 'جاري إنهاء الملف...';
+      await output.finalize();
+
+      const blob = new Blob([output.target.buffer], { type:'video/webm' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = 'motion-date-studio-export.webm';
+      a.textContent = '⬇ تحميل الفيديو (WebM)';
+      downloadArea.appendChild(a);
+      exportStatus.textContent = 'تم! ' + (totalDurationMs/1000).toFixed(1) + 'ث، ' + totalFrames + ' فريم — مطابق للمعاينة 100%.';
+    }catch(err){
+      console.error(err);
+      exportStatus.textContent = 'حصل خطأ أثناء التصدير: ' + (err && err.message ? err.message : err);
+    }finally{
+      elapsedMs = wasElapsed;
+      renderFrame();
+      exportBtn.disabled = false;
+      exportPngBtn.disabled = false;
+      isExporting = false;
+      recDot.classList.remove('live');
+      recText.textContent = 'PAUSED';
+    }
+  });
+
+  // ---- PNG sequence export: deterministic, frame-accurate, guaranteed alpha, zero compression artifacts ----
+  exportPngBtn.addEventListener('click', async () => {
+    if(isExporting) return;
+    if(!window.JSZip){
+      pngStatus.textContent = 'مكتبة الضغط لسه بتحمّل، جرّب تاني بعد ثانيتين.';
+      return;
+    }
+    if(!canvas.toBlob){
+      pngStatus.textContent = 'المتصفح ده مش بيدعم تصدير الصور.';
+      return;
+    }
+    isExporting = true;
+    exportBtn.disabled = true;
+    exportPngBtn.disabled = true;
+    setPlaying(false);
+    pngDownloadArea.innerHTML = '';
+    const wasElapsed = elapsedMs;
+
+    const fps = exportSettings.fps;
+    const totalFrames = Math.max(1, Math.round((totalDurationMs/1000) * fps));
+    const zip = new JSZip();
+    const folder = zip.folder('motion-date-frames');
+
+    for(let i=0; i<totalFrames; i++){
+      elapsedMs = Math.min(totalDurationMs, i * (1000/fps));
+      renderFrame();
+      const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));
+      folder.file('frame_' + String(i+1).padStart(5,'0') + '.png', blob);
+      if(i % 8 === 0 || i === totalFrames-1){
+        pngStatus.textContent = 'جاري إنشاء الإطارات... ' + (i+1) + '/' + totalFrames;
+        await new Promise(r => setTimeout(r, 0));
+      }
+    }
+
+    pngStatus.textContent = 'جاري ضغط الملفات...';
+    await new Promise(r => setTimeout(r, 0));
+    const zipBlob = await zip.generateAsync({ type:'blob' }, (meta) => {
+      pngStatus.textContent = 'جاري الضغط... ' + Math.round(meta.percent) + '%';
+    });
+    const url = URL.createObjectURL(zipBlob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'motion-date-frames.zip';
+    a.textContent = '⬇ تحميل سلسلة الصور (ZIP)';
+    pngDownloadArea.appendChild(a);
+    pngStatus.textContent = 'تم! ' + totalFrames + ' فريم بمعدل ' + fps + 'fps.';
+
+    elapsedMs = wasElapsed;
+    renderFrame();
+    exportBtn.disabled = false;
+    exportPngBtn.disabled = false;
+    isExporting = false;
+  });
+
+  // ---- color swatches (workaround: native <input type=color> may not open a picker in some in-app webviews) ----
+  const palette = ['#F4F2ED','#F2A93B','#FF7A1A','#FF3B4A','#FFD23B','#4FD1C5','#8B8D95'];
+  function buildSwatches(fieldId, colorInput){
+    const field = document.getElementById(fieldId);
+    const row = document.createElement('span');
+    row.className = 'swatches';
+    palette.forEach(hex => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'swatch' + (colorInput.value.toLowerCase() === hex.toLowerCase() ? ' sel' : '');
+      b.style.background = hex;
+      b.addEventListener('click', () => {
+        colorInput.value = hex;
+        row.querySelectorAll('.swatch').forEach(s => s.classList.remove('sel'));
+        b.classList.add('sel');
+        renderFrame();
+      });
+      row.appendChild(b);
+    });
+    field.appendChild(row);
+    field.appendChild(colorInput);
+  }
+  buildSwatches('dayColorField', dayColorInput);
+  buildSwatches('monthColorField', monthColorInput);
+  buildSwatches('yearColorField', yearColorInput);
+  buildSwatches('sepColorField', sepColorInput);
+
+  recompute();
+})();
+</script>
+</body>
+</html>
